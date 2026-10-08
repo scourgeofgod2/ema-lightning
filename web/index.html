@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMA Lightning — Türkçe metinden sese</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --card: #141821;
+    --line: #232936;
+    --text: #eef1f6;
+    --muted: #8b93a7;
+    --accent: #f5c518;
+    --accent-ink: #1a1400;
+    --danger: #ff6b6b;
+  }
+  [x-cloak] { display: none !important; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Inter", system-ui, sans-serif;
+    background:
+      radial-gradient(900px 420px at 80% -10%, rgba(245, 197, 24, .12), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+  header, main, footer { width: min(760px, calc(100% - 32px)); margin: 0 auto; }
+  header { padding: 40px 0 8px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.02em; }
+  h1 span { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+  a.gh {
+    color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; white-space: nowrap;
+  }
+  a.gh:hover { color: var(--text); border-color: var(--muted); }
+  main { flex: 1; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 20px; margin-top: 20px;
+  }
+  textarea {
+    width: 100%; resize: vertical; min-height: 120px; background: var(--bg);
+    color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; font: 500 16px/1.55 "Inter", sans-serif;
+  }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 16px; align-items: flex-end; margin-top: 16px; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  input[type="number"] {
+    width: 110px; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px; font: 500 14px "Inter", sans-serif;
+  }
+  input[type="range"] { accent-color: var(--accent); width: 160px; }
+  .speed-val { font-variant-numeric: tabular-nums; color: var(--text); font-size: 14px; font-weight: 600; }
+  button.go {
+    margin-left: auto; background: var(--accent); color: var(--accent-ink); border: 0;
+    border-radius: 12px; padding: 12px 22px; font: 600 15px "Inter", sans-serif; cursor: pointer;
+  }
+  button.go:disabled { opacity: .55; cursor: progress; }
+  button.go:hover:not(:disabled) { filter: brightness(1.08); }
+  .error { color: var(--danger); font-size: 13px; margin: 12px 0 0; }
+  .meta { display: flex; gap: 18px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  audio { width: 100%; margin-top: 14px; }
+  .words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .words span {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 4px 9px; font-size: 13.5px; cursor: pointer; transition: .12s;
+  }
+  .words span.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  footer { padding: 28px 0 36px; color: var(--muted); font-size: 12.5px; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body x-data="app()" x-init="init()">
+<header>
+  <div>
+    <h1>⚡ EMA <span>Lightning</span></h1>
+    <p class="tagline">Küçük, hızlı ve doğru Türkçe metinden sese. Tamamen bu makinede çalışır.</p>
+  </div>
+  <a class="gh" href="https://github.com/canberk7/ema-lightning" target="_blank" rel="noreferrer">GitHub ↗</a>
+</header>
+
+<main>
+  <form class="card" @submit.prevent="speak">
+    <textarea x-model="text" maxlength="2000" placeholder="Bir şeyler yazın…"></textarea>
+    <div class="row">
+      <label>Hız
+        <span class="speed-val" x-text="Number(speed).toFixed(2) + '×'"></span>
+        <input type="range" min="0.25" max="4" step="0.05" x-model="speed">
+      </label>
+      <label>Seed
+        <input type="number" min="0" step="1" placeholder="rastgele" x-model="seed">
+      </label>
+      <button class="go" :disabled="busy || !text.trim()" x-text="busy ? 'Üretiliyor…' : 'Seslendir'"></button>
+    </div>
+    <p class="error" x-show="error" x-text="error"></p>
+  </form>
+
+  <section class="card" x-show="url" x-cloak>
+    <div class="meta">
+      <span x-text="duration.toFixed(2) + ' sn'"></span>
+      <span x-text="sampleRate / 1000 + ' kHz'"></span>
+      <span x-text="'seed ' + usedSeed"></span>
+    </div>
+    <audio x-ref="player" :src="url" controls @timeupdate="tick" @play="playing = true" @pause="playing = false"></audio>
+    <div class="words">
+      <span :class="playing && t >= w.start && t < w.end && 'on'"
+            @click="$refs.player.currentTime = w.start; $refs.player.play()"
+            x-text="w.text" :title="w.start.toFixed(2) + 's'"
+            x-for="(w, i) in words" :key="i"></span>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Model ve kod <a href="https://github.com/canberk7/ema-lightning" target="_blank" rel="noreferrer">canberk7/ema-lightning</a> · Apache-2.0 ·
+  Ağırlıklar <a href="https://huggingface.co/canberkkkkkk/ema-lightning" target="_blank" rel="noreferrer">Hugging Face</a>
+</footer>
+
+<script>
+  function app() {
+    return {
+      text: "Merhaba, size nasıl yardımcı olabilirim?",
+      speed: 1, seed: "", busy: false, error: "",
+      url: "", duration: 0, sampleRate: 0, usedSeed: 0, words: [], t: 0, playing: false,
+      init() { document.querySelector("[x-cloak]")?.removeAttribute("x-cloak"); },
+      tick(e) { this.t = e.target.currentTime; },
+      async speak() {
+        this.busy = true; this.error = "";
+        try {
+          const res = await fetch("/api/say", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: this.text, speed: Number(this.speed), seed: this.seed }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Bir hata oluştu.");
+          if (this.url) URL.revokeObjectURL(this.url);
+          const bin = atob(data.wav);
+          const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+          this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+          this.duration = data.duration; this.sampleRate = data.sample_rate;
+          this.usedSeed = data.seed; this.words = data.words;
+          this.$nextTick(() => this.$refs.player.play());
+        } catch (e) {
+          this.error = e.message;
+        } finally {
+          this.busy = false;
+        }
+      },
+    };
+  }
+</script>
+</body>
+</html>

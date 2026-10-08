@@ -67,7 +67,15 @@
   }
   button.go:disabled { opacity: .55; cursor: progress; }
   button.go:hover:not(:disabled) { filter: brightness(1.08); }
-  .error { color: var(--danger); font-size: 13px; margin: 12px 0 0; }
+  .error { color: var(--danger); font-size: 13px; margin: 12px 0 0; white-space: pre-wrap; }
+  .count { margin: 8px 2px 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .count.over { color: var(--danger); font-weight: 600; }
+  .logbox {
+    margin: 0; max-height: 240px; overflow: auto; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+    font: 12.5px/1.6 ui-monospace, "Cascadia Code", Consolas, monospace;
+    color: var(--muted); white-space: pre-wrap;
+  }
   .meta { display: flex; gap: 18px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
   audio { width: 100%; margin-top: 14px; }
   .words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
@@ -91,7 +99,8 @@
 
 <main>
   <form class="card" @submit.prevent="speak">
-    <textarea x-model="text" maxlength="2000" placeholder="Bir şeyler yazın…"></textarea>
+    <textarea x-model="text" placeholder="Bir şeyler yazın…"></textarea>
+    <div class="count" :class="text.length > 2000 && 'over'" x-text="text.length + ' / 2000 karakter'"></div>
     <div class="row">
       <label>Hız
         <span class="speed-val" x-text="Number(speed).toFixed(2) + '×'"></span>
@@ -100,7 +109,7 @@
       <label>Seed
         <input type="number" min="0" step="1" placeholder="rastgele" x-model="seed">
       </label>
-      <button class="go" :disabled="busy || !text.trim()" x-text="busy ? 'Üretiliyor…' : 'Seslendir'"></button>
+      <button class="go" :disabled="busy || !text.trim() || text.length > 2000" x-text="busy ? 'Üretiliyor…' : 'Seslendir'"></button>
     </div>
     <p class="error" x-show="error" x-text="error"></p>
   </form>
@@ -119,6 +128,14 @@
             x-for="(w, i) in words" :key="i"></span>
     </div>
   </section>
+
+  <section class="card">
+    <div class="meta" style="margin-bottom: 10px">
+      <span>Sunucu logları</span>
+      <span x-text="logs.length + ' satır'"></span>
+    </div>
+    <pre class="logbox" x-ref="logbox" x-text="logs.join('\n') || 'Henüz log yok.'"></pre>
+  </section>
 </main>
 
 <footer>
@@ -130,9 +147,23 @@
   function app() {
     return {
       text: "Merhaba, size nasıl yardımcı olabilirim?",
-      speed: 1, seed: "", busy: false, error: "",
+      speed: 1, seed: "", busy: false, error: "", logs: [],
       url: "", duration: 0, sampleRate: 0, usedSeed: 0, words: [], t: 0, playing: false,
-      init() { document.querySelector("[x-cloak]")?.removeAttribute("x-cloak"); },
+      init() {
+        document.querySelector("[x-cloak]")?.removeAttribute("x-cloak");
+        this.pollLogs();
+        setInterval(() => this.pollLogs(), 2000);
+      },
+      async pollLogs() {
+        try {
+          const res = await fetch("/api/logs");
+          if (!res.ok) return;
+          const next = await res.json();
+          if (next.length === this.logs.length && next.at(-1) === this.logs.at(-1)) return;
+          this.logs = next;
+          this.$nextTick(() => { const b = this.$refs.logbox; if (b) b.scrollTop = b.scrollHeight; });
+        } catch { /* sunucu kapalıysa panel sessiz kalır */ }
+      },
       tick(e) { this.t = e.target.currentTime; },
       async speak() {
         this.busy = true; this.error = "";
@@ -153,6 +184,7 @@
           this.$nextTick(() => this.$refs.player.play());
         } catch (e) {
           this.error = e.message;
+          this.pollLogs();
         } finally {
           this.busy = false;
         }
